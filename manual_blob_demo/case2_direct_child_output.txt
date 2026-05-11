@@ -1,0 +1,1 @@
+case2 input read locally by the child, but written by the parent
