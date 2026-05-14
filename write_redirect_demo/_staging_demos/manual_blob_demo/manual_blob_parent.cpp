@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+// Wraps a command-line argument in double quotes.
+// 用双引号包裹命令行参数。
 static std::wstring quote(const std::wstring& value) {
     return L"\"" + value + L"\"";
 }
@@ -15,6 +17,8 @@ struct SharedBlock {
     volatile std::uint32_t value;
 };
 
+// Prints the number of normally loaded modules in the child process.
+// 打印子进程中正常加载的模块数量。
 static bool listChildModules(HANDLE process) {
     HMODULE modules[1024]{};
     DWORD needed = 0;
@@ -35,6 +39,8 @@ static bool listChildModules(HANDLE process) {
     return true;
 }
 
+// Starts a suspended child, injects an anonymous code blob, and verifies its result.
+// 启动挂起的子进程，注入匿名代码块，并验证执行结果。
 int wmain() {
     wchar_t modulePath[MAX_PATH]{};
     GetModuleFileNameW(nullptr, modulePath, MAX_PATH);

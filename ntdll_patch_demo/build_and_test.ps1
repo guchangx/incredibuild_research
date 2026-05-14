@@ -10,10 +10,10 @@ if (!(Test-Path $VcVars)) {
 
 Push-Location $Root
 try {
-    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /W4 /EHsc child.cpp /Fe:child.exe"
+    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /utf-8 /W4 /EHsc child.cpp /Fe:child.exe"
     if ($LASTEXITCODE -ne 0) { throw "child build failed" }
 
-    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /W4 /EHsc parent_patch.cpp /Fe:parent_patch.exe"
+    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /utf-8 /W4 /EHsc parent_patch.cpp /Fe:parent_patch.exe"
     if ($LASTEXITCODE -ne 0) { throw "parent build failed" }
 
     Remove-Item -Force -ErrorAction SilentlyContinue .\child_output.txt, .\parent_marker.txt

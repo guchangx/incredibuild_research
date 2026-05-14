@@ -1,4 +1,4 @@
-#define WIN32_LEAN_AND_MEAN
+﻿#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winternl.h>
 
@@ -26,16 +26,22 @@ struct RemotePatch {
     SIZE_T originalSize = 0;
 };
 
+// Wraps a command-line argument in double quotes.
+// 用双引号包裹命令行参数。
 static std::wstring quote(const std::wstring& value) {
     return L"\"" + value + L"\"";
 }
 
+// Writes a complete null-terminated text buffer to a file handle.
+// 将完整的空字符结尾文本缓冲区写入文件句柄。
 static bool writeAll(HANDLE file, const char* text) {
     DWORD written = 0;
     return WriteFile(file, text, static_cast<DWORD>(std::strlen(text)), &written, nullptr) &&
            written == std::strlen(text);
 }
 
+// Creates a marker file proving the parent can still write normally.
+// 创建标记文件，证明父进程仍可正常写入。
 static bool createMarkerFile(const std::wstring& path) {
     HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
                               FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -47,7 +53,71 @@ static bool createMarkerFile(const std::wstring& path) {
     return ok;
 }
 
-static bool patchRemoteNtWriteFile(HANDLE process, RemotePatch& patch) {
+// Reads the main executable image base from the remote process PEB.
+// 从远程进程 PEB 中读取主可执行映像的基地址。
+static bool getRemoteImageBase(HANDLE process, std::uintptr_t& base) {
+    using NtQueryInformationProcessType = NTSTATUS(NTAPI*)(
+        HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
+    auto ntQueryInformationProcess = reinterpret_cast<NtQueryInformationProcessType>(
+        GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess"));
+    if (!ntQueryInformationProcess) {
+        return false;
+    }
+
+    PROCESS_BASIC_INFORMATION pbi{};
+    NTSTATUS status = ntQueryInformationProcess(process, ProcessBasicInformation,
+                                                &pbi, sizeof(pbi), nullptr);
+    if (status < 0 || !pbi.PebBaseAddress) {
+        return false;
+    }
+
+#if defined(_M_X64)
+    auto imageBaseSlot = reinterpret_cast<const char*>(pbi.PebBaseAddress) + 0x10;
+#else
+#error This demo is x64-only.
+#endif
+
+    SIZE_T read = 0;
+    return ReadProcessMemory(process, imageBaseSlot, &base, sizeof(base), &read) &&
+           read == sizeof(base) && base != 0;
+}
+
+// Finds the child process address of the exported MyWriteFile function.
+// 查找子进程中导出的 MyWriteFile 函数地址。
+static bool findRemoteMyWriteFile(HANDLE process, const std::wstring& childExe,
+                                  void*& remoteFunction) {
+    std::uintptr_t remoteImageBase = 0;
+    if (!getRemoteImageBase(process, remoteImageBase)) {
+        std::printf("failed to read child image base: %lu\n", GetLastError());
+        return false;
+    }
+
+    HMODULE localChild = LoadLibraryExW(childExe.c_str(), nullptr, DONT_RESOLVE_DLL_REFERENCES);
+    if (!localChild) {
+        std::printf("LoadLibraryExW(child) failed: %lu\n", GetLastError());
+        return false;
+    }
+
+    auto* localFunction = reinterpret_cast<std::uint8_t*>(
+        GetProcAddress(localChild, "MyWriteFile"));
+    if (!localFunction) {
+        std::printf("GetProcAddress(MyWriteFile) failed: %lu\n", GetLastError());
+        FreeLibrary(localChild);
+        return false;
+    }
+
+    auto* localBase = reinterpret_cast<std::uint8_t*>(localChild);
+    const std::uintptr_t functionRva =
+        static_cast<std::uintptr_t>(localFunction - localBase);
+    remoteFunction = reinterpret_cast<void*>(remoteImageBase + functionRva);
+    FreeLibrary(localChild);
+    return true;
+}
+
+// Replaces the child process NtWriteFile entry point with the child MyWriteFile function.
+// 将子进程的 NtWriteFile 入口替换为子进程中的 MyWriteFile 函数。
+static bool patchRemoteNtWriteFile(HANDLE process, const std::wstring& childExe,
+                                   RemotePatch& patch) {
     HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
     if (!ntdll) {
         std::printf("GetModuleHandleW(ntdll) failed: %lu\n", GetLastError());
@@ -67,34 +137,7 @@ static bool patchRemoteNtWriteFile(HANDLE process, RemotePatch& patch) {
     patch.originalSize = 12;
     std::memcpy(patch.original, localNtWriteFile, patch.originalSize);
 
-    // x64 code:
-    //   mov dword ptr [r9+0], 0      ; IO_STATUS_BLOCK.Status = STATUS_SUCCESS
-    //   mov qword ptr [r9+8], r9     ; temporary nonzero value
-    //   mov [r9+8], rax              ; Information = 0
-    //   xor eax, eax                 ; return STATUS_SUCCESS
-    //   ret
-    //
-    // NtWriteFile's fifth parameter is IoStatusBlock. Under the Windows x64 ABI,
-    // parameters 1-4 are rcx/rdx/r8/r9 and parameter 5 is on the stack. However,
-    // ntdll syscall stubs enter before stack parameters are rearranged for kernel
-    // mode. To avoid relying on that layout, this demo uses a smaller hook that
-    // simply returns STATUS_SUCCESS. The child only checks WriteFile's BOOL result.
-    unsigned char hookCode[] = {
-        0x31, 0xC0, // xor eax,eax
-        0xC3        // ret
-    };
-
-    patch.hook = VirtualAllocEx(process, nullptr, sizeof(hookCode),
-                                MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    if (!patch.hook) {
-        std::printf("VirtualAllocEx(hook) failed: %lu\n", GetLastError());
-        return false;
-    }
-
-    SIZE_T written = 0;
-    if (!WriteProcessMemory(process, patch.hook, hookCode, sizeof(hookCode), &written) ||
-        written != sizeof(hookCode)) {
-        std::printf("WriteProcessMemory(hook) failed: %lu\n", GetLastError());
+    if (!findRemoteMyWriteFile(process, childExe, patch.hook)) {
         return false;
     }
 
@@ -112,7 +155,7 @@ static bool patchRemoteNtWriteFile(HANDLE process, RemotePatch& patch) {
         return false;
     }
 
-    written = 0;
+    SIZE_T written = 0;
     if (!WriteProcessMemory(process, patch.target, jump, sizeof(jump), &written) ||
         written != sizeof(jump)) {
         std::printf("WriteProcessMemory(target) failed: %lu\n", GetLastError());
@@ -123,9 +166,12 @@ static bool patchRemoteNtWriteFile(HANDLE process, RemotePatch& patch) {
 
     DWORD ignored = 0;
     VirtualProtectEx(process, patch.target, sizeof(jump), oldProtect, &ignored);
+    std::printf("patched child NtWriteFile to child MyWriteFile at %p\n", patch.hook);
     return true;
 }
 
+// Returns a file size and reports whether the file exists.
+// 返回文件大小，并报告文件是否存在。
 static std::uint64_t fileSizeOrMissing(const std::wstring& path, bool& exists) {
     WIN32_FILE_ATTRIBUTE_DATA data{};
     if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) {
@@ -139,6 +185,8 @@ static std::uint64_t fileSizeOrMissing(const std::wstring& path, bool& exists) {
     return size.QuadPart;
 }
 
+// Runs the child with NtWriteFile patched and verifies that payload bytes are swallowed.
+// 在修补 NtWriteFile 后运行子进程，并验证载荷字节被吞掉。
 int wmain() {
     wchar_t modulePath[MAX_PATH]{};
     GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
@@ -171,7 +219,7 @@ int wmain() {
     }
 
     RemotePatch patch{};
-    if (!patchRemoteNtWriteFile(pi.hProcess, patch)) {
+    if (!patchRemoteNtWriteFile(pi.hProcess, childExe, patch)) {
         TerminateProcess(pi.hProcess, 100);
         CloseHandle(pi.hThread);
         CloseHandle(pi.hProcess);

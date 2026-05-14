@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
@@ -12,6 +12,8 @@
 
 class WinsockRuntime {
 public:
+    // Starts Winsock for the current process.
+    // 为当前进程启动 Winsock。
     WinsockRuntime() {
         WSADATA data{};
         const int result = WSAStartup(MAKEWORD(2, 2), &data);
@@ -20,19 +22,30 @@ public:
         }
     }
 
+    // Cleans up the Winsock runtime for the current process.
+    // 清理当前进程的 Winsock 运行时。
     ~WinsockRuntime() {
         WSACleanup();
     }
 
+    // Disables copying because Winsock startup and cleanup are process-wide side effects.
+    // 禁止复制，因为 Winsock 启动和清理是进程级副作用。
     WinsockRuntime(const WinsockRuntime&) = delete;
+
+    // Disables assignment for the same single-owner runtime lifetime.
+    // 禁止赋值，以保持同样的单所有者运行期生命周期。
     WinsockRuntime& operator=(const WinsockRuntime&) = delete;
 };
 
+// Builds a readable message from the current Winsock error value.
+// 根据当前 Winsock 错误值构造可读错误消息。
 inline std::string wsa_error_message(const char* prefix) {
     return std::string(prefix) + " failed with WSA error " +
            std::to_string(WSAGetLastError());
 }
 
+// Sends the complete buffer over a TCP socket.
+// 通过 TCP 套接字发送完整缓冲区。
 inline void socket_send_all(SOCKET socket, const void* data, std::size_t size) {
     const auto* cursor = static_cast<const char*>(data);
     std::size_t remaining = size;
@@ -52,6 +65,8 @@ inline void socket_send_all(SOCKET socket, const void* data, std::size_t size) {
     }
 }
 
+// Receives exactly the requested number of bytes from a TCP socket.
+// 从 TCP 套接字接收指定数量的字节。
 inline void socket_recv_all(SOCKET socket, void* data, std::size_t size) {
     auto* cursor = static_cast<char*>(data);
     std::size_t remaining = size;
@@ -71,6 +86,8 @@ inline void socket_recv_all(SOCKET socket, void* data, std::size_t size) {
     }
 }
 
+// Opens a TCP connection to the process_c loopback server.
+// 打开到 process_c 本机回环服务器的 TCP 连接。
 inline SOCKET connect_to_process_c() {
     SOCKET socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (socket == INVALID_SOCKET) {
@@ -92,6 +109,8 @@ inline SOCKET connect_to_process_c() {
     return socket;
 }
 
+// Sends one framed redirect message to process_c and validates its response.
+// 向 process_c 发送一条带帧的重定向消息，并校验响应。
 inline void send_tcp_message(SOCKET socket, PipeCommand command,
                              const std::string& path,
                              const void* payload,
@@ -118,4 +137,3 @@ inline void send_tcp_message(SOCKET socket, PipeCommand command,
                                  std::to_string(response.win32Error));
     }
 }
-

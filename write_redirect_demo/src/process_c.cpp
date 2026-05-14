@@ -1,8 +1,10 @@
-#include "common.hpp"
+﻿#include "common.hpp"
 #include "tcp_common.hpp"
 
 namespace {
 
+// Handles one TCP client and writes the redirected file stream.
+// 处理一个 TCP 客户端，并写入重定向的文件流。
 void handle_client(SOCKET client) {
     HANDLE file = INVALID_HANDLE_VALUE;
     std::wstring current_path;
@@ -97,6 +99,8 @@ void handle_client(SOCKET client) {
     }
 }
 
+// Prints command-line usage for process_c.
+// 打印 process_c 的命令行用法。
 void usage() {
     std::cout
         << "Usage:\n"
@@ -107,6 +111,8 @@ void usage() {
 
 } // namespace
 
+// Runs the loopback TCP server that receives redirected file streams.
+// 运行接收重定向文件流的本机回环 TCP 服务器。
 int wmain(int argc, wchar_t** argv) {
     try {
         bool once = false;
@@ -175,4 +181,3 @@ int wmain(int argc, wchar_t** argv) {
         return 1;
     }
 }
-

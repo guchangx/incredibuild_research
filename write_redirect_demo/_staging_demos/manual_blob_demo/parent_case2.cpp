@@ -10,10 +10,14 @@
 #include <string>
 #include <vector>
 
+// Wraps a command-line argument in double quotes.
+// 用双引号包裹命令行参数。
 static std::wstring quote(const std::wstring& value) {
     return L"\"" + value + L"\"";
 }
 
+// Returns the directory that contains the current executable.
+// 返回当前可执行文件所在的目录。
 static std::wstring exeDirectory() {
     wchar_t modulePath[MAX_PATH]{};
     GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
@@ -22,6 +26,8 @@ static std::wstring exeDirectory() {
     return dir;
 }
 
+// Writes a null-terminated text buffer to a file.
+// 将以空字符结尾的文本缓冲区写入文件。
 static bool writeTextFile(const std::wstring& path, const char* text) {
     HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
                               FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -34,6 +40,8 @@ static bool writeTextFile(const std::wstring& path, const char* text) {
     return ok && written == std::strlen(text);
 }
 
+// Reads a small file into a string and reports whether it existed.
+// 将小文件读取为字符串，并报告文件是否存在。
 static std::string readSmallFile(const std::wstring& path, bool& exists) {
     exists = false;
     HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
@@ -50,6 +58,8 @@ static std::string readSmallFile(const std::wstring& path, bool& exists) {
     return std::string(buffer, buffer + read);
 }
 
+// Returns a file size and reports whether the file exists.
+// 返回文件大小，并报告文件是否存在。
 static std::uint64_t fileSizeOrMissing(const std::wstring& path, bool& exists) {
     WIN32_FILE_ATTRIBUTE_DATA data{};
     if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) {
@@ -63,6 +73,8 @@ static std::uint64_t fileSizeOrMissing(const std::wstring& path, bool& exists) {
     return size.QuadPart;
 }
 
+// Reads a null-terminated ANSI string from another process.
+// 从另一个进程中读取以空字符结尾的 ANSI 字符串。
 static bool readRemoteString(HANDLE process, std::uintptr_t remoteAddress, std::string& out) {
     out.clear();
     for (std::size_t i = 0; i < 260; ++i) {
@@ -80,6 +92,8 @@ static bool readRemoteString(HANDLE process, std::uintptr_t remoteAddress, std::
     return false;
 }
 
+// Finds the base address of the child process main module.
+// 查找子进程主模块的基地址。
 static bool getMainModuleBase(HANDLE process, std::uintptr_t& base) {
     HMODULE modules[16]{};
     DWORD needed = 0;
@@ -111,6 +125,8 @@ static bool getMainModuleBase(HANDLE process, std::uintptr_t& base) {
            read == sizeof(base) && base != 0;
 }
 
+// Locates an imported function slot in the remote process IAT.
+// 在远程进程的导入地址表中定位指定导入函数槽位。
 static bool findRemoteIatEntry(HANDLE process, const char* importName, std::uintptr_t& iatEntry) {
     std::uintptr_t base = 0;
     if (!getMainModuleBase(process, base)) {
@@ -173,6 +189,8 @@ static bool findRemoteIatEntry(HANDLE process, const char* importName, std::uint
     return false;
 }
 
+// Patches the child process WriteFile IAT entry to point at a breakpoint stub.
+// 将子进程的 WriteFile 导入地址表项修补为指向断点桩代码。
 static bool patchWriteFileIat(HANDLE process, void*& remoteStub) {
     // The stub is "int3; ret". The parent debug loop handles the breakpoint,
     // copies the child's WriteFile buffer, sets the return value, and returns
@@ -220,6 +238,8 @@ static bool patchWriteFileIat(HANDLE process, void*& remoteStub) {
     return true;
 }
 
+// Handles the breakpoint and writes the child's buffer from the parent process.
+// 处理断点，并由父进程写出子进程的缓冲区内容。
 static bool handleIntercept(HANDLE process, DWORD threadId, HANDLE parentOutput) {
     HANDLE thread = OpenThread(THREAD_GET_CONTEXT | THREAD_SET_CONTEXT | THREAD_SUSPEND_RESUME,
                                FALSE, threadId);
@@ -270,6 +290,8 @@ static bool handleIntercept(HANDLE process, DWORD threadId, HANDLE parentOutput)
     return ok && parentWriteOk;
 }
 
+// Runs the child without hooks to prove the baseline write path works.
+// 在不安装钩子的情况下运行子进程，以证明基准写入路径可用。
 static bool runDirectChild(const std::wstring& childExe, const std::wstring& input,
                            const std::wstring& output) {
     std::wstring cmd = quote(childExe) + L" " + quote(input) + L" " + quote(output);
@@ -291,6 +313,8 @@ static bool runDirectChild(const std::wstring& childExe, const std::wstring& inp
     return exitCode == 0;
 }
 
+// Verifies that child reads stay local while WriteFile output is redirected to the parent.
+// 验证子进程读取保持本地执行，同时 WriteFile 输出被重定向到父进程。
 int wmain() {
     const std::wstring dir = exeDirectory();
     const std::wstring childExe = dir + L"\\child_case2.exe";

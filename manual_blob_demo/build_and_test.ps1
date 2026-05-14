@@ -10,16 +10,16 @@ if (!(Test-Path $VcVars)) {
 
 Push-Location $Root
 try {
-    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /W4 /EHsc child_wait.cpp /Fe:child_wait.exe"
+    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /utf-8 /W4 /EHsc child_wait.cpp /Fe:child_wait.exe"
     if ($LASTEXITCODE -ne 0) { throw "child build failed" }
 
-    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /W4 /EHsc manual_blob_parent.cpp /Fe:manual_blob_parent.exe psapi.lib"
+    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /utf-8 /W4 /EHsc manual_blob_parent.cpp /Fe:manual_blob_parent.exe psapi.lib"
     if ($LASTEXITCODE -ne 0) { throw "parent build failed" }
 
-    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /W4 /EHsc child_case2.cpp /Fe:child_case2.exe"
+    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /utf-8 /W4 /EHsc child_case2.cpp /Fe:child_case2.exe"
     if ($LASTEXITCODE -ne 0) { throw "case2 child build failed" }
 
-    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /W4 /EHsc parent_case2.cpp /Fe:parent_case2.exe psapi.lib"
+    cmd /c "`"$VcVars`" >nul && cl /nologo /std:c++17 /utf-8 /W4 /EHsc parent_case2.cpp /Fe:parent_case2.exe psapi.lib"
     if ($LASTEXITCODE -ne 0) { throw "case2 parent build failed" }
 
     Write-Host "Running case1: anonymous blob executes in child"

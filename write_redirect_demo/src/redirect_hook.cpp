@@ -1,4 +1,4 @@
-#define WIN32_LEAN_AND_MEAN
+﻿#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 #include "protocol.hpp"
@@ -25,6 +25,8 @@ std::wstring g_target_path;
 std::unordered_map<HANDLE, HANDLE> g_redirected_handles;
 std::uintptr_t g_next_fake_handle = 0x70000000;
 
+// Resolves a path to an absolute path without throwing on failure.
+// 将路径解析为绝对路径，失败时不抛出异常。
 std::wstring absolute_path_no_throw(std::wstring_view path) {
     if (path.empty()) {
         return {};
@@ -47,11 +49,15 @@ std::wstring absolute_path_no_throw(std::wstring_view path) {
     return result;
 }
 
+// Compares two paths case-insensitively using ordinal string comparison.
+// 使用序数字符串比较以大小写不敏感方式比较两个路径。
 bool same_path(const std::wstring& left, const std::wstring& right) {
     return CompareStringOrdinal(left.c_str(), -1, right.c_str(), -1, TRUE) ==
            CSTR_EQUAL;
 }
 
+// Converts UTF-16 text to UTF-8 without throwing on failure.
+// 将 UTF-16 文本转换为 UTF-8，失败时不抛出异常。
 std::string narrow_no_throw(std::wstring_view text) {
     if (text.empty()) {
         return {};
@@ -68,6 +74,8 @@ std::string narrow_no_throw(std::wstring_view text) {
     return result;
 }
 
+// Writes an entire buffer through the original WriteFile function.
+// 通过原始 WriteFile 函数写入完整缓冲区。
 bool real_write_all(HANDLE handle, const void* data, DWORD bytes) {
     const auto* cursor = static_cast<const std::uint8_t*>(data);
     DWORD remaining = bytes;
@@ -86,6 +94,8 @@ bool real_write_all(HANDLE handle, const void* data, DWORD bytes) {
     return true;
 }
 
+// Reads an exact byte count through the normal ReadFile API.
+// 通过常规 ReadFile API 读取精确的字节数。
 bool real_read_all(HANDLE handle, void* data, DWORD bytes) {
     auto* cursor = static_cast<std::uint8_t*>(data);
     DWORD remaining = bytes;
@@ -104,6 +114,8 @@ bool real_read_all(HANDLE handle, void* data, DWORD bytes) {
     return true;
 }
 
+// Sends one redirect protocol message over the named pipe and reads its response.
+// 通过命名管道发送一条重定向协议消息并读取响应。
 bool send_message(HANDLE pipe, PipeCommand command, const std::string& path,
                   const void* payload, DWORD payload_bytes,
                   PipeResponse* response) {
@@ -142,6 +154,8 @@ bool send_message(HANDLE pipe, PipeCommand command, const std::string& path,
     return true;
 }
 
+// Connects to the process_b named-pipe server with short retries.
+// 通过短暂重试连接到 process_b 命名管道服务器。
 HANDLE connect_to_process_b() {
     for (int attempt = 0; attempt < 50; ++attempt) {
         HANDLE pipe = g_real_create_file_w(kPipeName, GENERIC_READ | GENERIC_WRITE,
@@ -161,6 +175,8 @@ HANDLE connect_to_process_b() {
     return INVALID_HANDLE_VALUE;
 }
 
+// Creates a fake file handle and associates it with a pipe connection.
+// 创建伪文件句柄，并将其关联到管道连接。
 HANDLE make_fake_handle(HANDLE pipe) {
     EnterCriticalSection(&g_lock);
     const auto raw = g_next_fake_handle += 4;
@@ -170,6 +186,8 @@ HANDLE make_fake_handle(HANDLE pipe) {
     return fake;
 }
 
+// Removes and returns the pipe associated with a fake file handle.
+// 移除并返回与伪文件句柄关联的管道。
 bool take_pipe(HANDLE fake, HANDLE* pipe) {
     EnterCriticalSection(&g_lock);
     const auto it = g_redirected_handles.find(fake);
@@ -183,6 +201,8 @@ bool take_pipe(HANDLE fake, HANDLE* pipe) {
     return true;
 }
 
+// Looks up the pipe associated with a fake file handle.
+// 查找与伪文件句柄关联的管道。
 bool get_pipe(HANDLE fake, HANDLE* pipe) {
     EnterCriticalSection(&g_lock);
     const auto it = g_redirected_handles.find(fake);
@@ -195,6 +215,8 @@ bool get_pipe(HANDLE fake, HANDLE* pipe) {
     return true;
 }
 
+// Intercepts target file opens and replaces them with redirected fake handles.
+// 拦截目标文件打开操作，并用重定向伪句柄替代。
 extern "C" HANDLE WINAPI HookedCreateFileW(
     LPCWSTR file_name, DWORD desired_access, DWORD share_mode,
     LPSECURITY_ATTRIBUTES security_attributes, DWORD creation_disposition,
@@ -226,6 +248,8 @@ extern "C" HANDLE WINAPI HookedCreateFileW(
                                 flags_and_attributes, template_file);
 }
 
+// Intercepts writes to redirected fake handles and sends payloads to process_b.
+// 拦截对重定向伪句柄的写入，并将载荷发送给 process_b。
 extern "C" BOOL WINAPI HookedWriteFile(HANDLE file, LPCVOID buffer,
                                        DWORD bytes_to_write,
                                        LPDWORD bytes_written,
@@ -251,6 +275,8 @@ extern "C" BOOL WINAPI HookedWriteFile(HANDLE file, LPCVOID buffer,
                              overlapped);
 }
 
+// Intercepts closes of redirected fake handles and closes the pipe protocol stream.
+// 拦截重定向伪句柄的关闭操作，并关闭管道协议流。
 extern "C" BOOL WINAPI HookedCloseHandle(HANDLE object) {
     HANDLE pipe = INVALID_HANDLE_VALUE;
     if (take_pipe(object, &pipe)) {
@@ -270,6 +296,8 @@ extern "C" BOOL WINAPI HookedCloseHandle(HANDLE object) {
     return g_real_close_handle(object);
 }
 
+// Patches one import address table entry in the current module.
+// 修补当前模块中的一个导入地址表项。
 bool patch_import(const char* import_name, void* replacement,
                   void** original_out) {
     HMODULE module = GetModuleHandleW(nullptr);
@@ -341,6 +369,8 @@ bool patch_import(const char* import_name, void* replacement,
     return false;
 }
 
+// Initializes hook state and patches imports when a redirect target is configured.
+// 初始化钩子状态，并在配置重定向目标时修补导入表。
 void initialize_hook() {
     InitializeCriticalSection(&g_lock);
 
@@ -372,6 +402,8 @@ void initialize_hook() {
 
 } // namespace
 
+// Initializes and tears down the redirect hook DLL for process attach and detach.
+// 在进程附加和分离时初始化并清理重定向钩子 DLL。
 BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
         initialize_hook();
@@ -380,4 +412,3 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID) {
     }
     return TRUE;
 }
-

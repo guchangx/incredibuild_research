@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -13,6 +13,8 @@
 #include <string_view>
 #include <vector>
 
+// Converts UTF-8 text to a UTF-16 wide string.
+// 将 UTF-8 文本转换为 UTF-16 宽字符串。
 inline std::wstring widen(std::string_view text) {
     if (text.empty()) {
         return {};
@@ -36,6 +38,8 @@ inline std::wstring widen(std::string_view text) {
     return result;
 }
 
+// Converts UTF-16 wide text to a UTF-8 string.
+// 将 UTF-16 宽文本转换为 UTF-8 字符串。
 inline std::string narrow(std::wstring_view text) {
     if (text.empty()) {
         return {};
@@ -60,6 +64,8 @@ inline std::string narrow(std::wstring_view text) {
     return result;
 }
 
+// Builds a readable message from the current Win32 last-error value.
+// 根据当前 Win32 last-error 值构造可读错误消息。
 inline std::string last_error_message(const char* prefix) {
     const DWORD error = GetLastError();
     LPSTR buffer = nullptr;
@@ -80,6 +86,8 @@ inline std::string last_error_message(const char* prefix) {
     return message;
 }
 
+// Resolves a path to its absolute Win32 path form.
+// 将路径解析为 Win32 绝对路径形式。
 inline std::wstring absolute_path(const std::wstring& path) {
     const DWORD required = GetFullPathNameW(path.c_str(), 0, nullptr, nullptr);
     if (required == 0) {
@@ -97,6 +105,8 @@ inline std::wstring absolute_path(const std::wstring& path) {
     return result;
 }
 
+// Writes the entire buffer to a Win32 handle.
+// 将整个缓冲区写入 Win32 句柄。
 inline void write_all(HANDLE handle, const void* data, std::size_t size) {
     const auto* cursor = static_cast<const std::uint8_t*>(data);
     std::size_t remaining = size;
@@ -116,6 +126,8 @@ inline void write_all(HANDLE handle, const void* data, std::size_t size) {
     }
 }
 
+// Reads exactly the requested number of bytes from a Win32 handle.
+// 从 Win32 句柄读取指定数量的字节。
 inline void read_all(HANDLE handle, void* data, std::size_t size) {
     auto* cursor = static_cast<std::uint8_t*>(data);
     std::size_t remaining = size;
@@ -135,6 +147,8 @@ inline void read_all(HANDLE handle, void* data, std::size_t size) {
     }
 }
 
+// Creates the parent directory chain for a target path if needed.
+// 按需为目标路径创建父目录链。
 inline void ensure_parent_directory(const std::wstring& path) {
     const std::size_t slash = path.find_last_of(L"\\/");
     if (slash == std::wstring::npos) {
@@ -181,6 +195,8 @@ inline void ensure_parent_directory(const std::wstring& path) {
     }
 }
 
+// Writes a payload directly to a file through normal Win32 file APIs.
+// 通过常规 Win32 文件 API 将载荷直接写入文件。
 inline void write_file_direct(const std::wstring& path,
                               std::string_view payload) {
     ensure_parent_directory(path);

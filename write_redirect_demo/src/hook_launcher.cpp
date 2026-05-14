@@ -1,10 +1,12 @@
-#include "common.hpp"
+﻿#include "common.hpp"
 
 #include <cwchar>
 #include <sstream>
 
 namespace {
 
+// Escapes and quotes a command-line argument for CreateProcessW.
+// 为 CreateProcessW 转义并引用命令行参数。
 std::wstring quote_arg(const std::wstring& arg) {
     std::wstring result = L"\"";
     for (wchar_t ch : arg) {
@@ -17,6 +19,8 @@ std::wstring quote_arg(const std::wstring& arg) {
     return result;
 }
 
+// Returns the directory that contains the current launcher executable.
+// 返回当前启动器可执行文件所在的目录。
 std::wstring current_exe_directory() {
     wchar_t buffer[MAX_PATH]{};
     const DWORD length = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
@@ -28,6 +32,8 @@ std::wstring current_exe_directory() {
     return slash == std::wstring::npos ? L"." : path.substr(0, slash);
 }
 
+// Injects a DLL into a remote process by calling LoadLibraryW there.
+// 通过在远程进程中调用 LoadLibraryW 注入 DLL。
 void inject_dll(HANDLE process, const std::wstring& dll_path) {
     const auto bytes = static_cast<SIZE_T>((dll_path.size() + 1) * sizeof(wchar_t));
     void* remote_memory =
@@ -69,6 +75,8 @@ void inject_dll(HANDLE process, const std::wstring& dll_path) {
     }
 }
 
+// Prints command-line usage for the hook launcher.
+// 打印钩子启动器的命令行用法。
 void usage() {
     std::cout
         << "Usage:\n"
@@ -80,6 +88,8 @@ void usage() {
 
 } // namespace
 
+// Starts process_a suspended, injects the redirect hook, and waits for completion.
+// 挂起启动 process_a，注入重定向钩子，并等待执行完成。
 int wmain(int argc, wchar_t** argv) {
     PROCESS_INFORMATION pi{};
     try {

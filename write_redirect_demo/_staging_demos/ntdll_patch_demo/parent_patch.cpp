@@ -26,16 +26,22 @@ struct RemotePatch {
     SIZE_T originalSize = 0;
 };
 
+// Wraps a command-line argument in double quotes.
+// 用双引号包裹命令行参数。
 static std::wstring quote(const std::wstring& value) {
     return L"\"" + value + L"\"";
 }
 
+// Writes a complete null-terminated text buffer to a file handle.
+// 将完整的空字符结尾文本缓冲区写入文件句柄。
 static bool writeAll(HANDLE file, const char* text) {
     DWORD written = 0;
     return WriteFile(file, text, static_cast<DWORD>(std::strlen(text)), &written, nullptr) &&
            written == std::strlen(text);
 }
 
+// Creates a marker file proving the parent can still write normally.
+// 创建标记文件，证明父进程仍可正常写入。
 static bool createMarkerFile(const std::wstring& path) {
     HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
                               FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -47,6 +53,8 @@ static bool createMarkerFile(const std::wstring& path) {
     return ok;
 }
 
+// Replaces the child process NtWriteFile entry point with a success-only stub.
+// 将子进程的 NtWriteFile 入口替换为只返回成功的桩代码。
 static bool patchRemoteNtWriteFile(HANDLE process, RemotePatch& patch) {
     HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
     if (!ntdll) {
@@ -126,6 +134,8 @@ static bool patchRemoteNtWriteFile(HANDLE process, RemotePatch& patch) {
     return true;
 }
 
+// Returns a file size and reports whether the file exists.
+// 返回文件大小，并报告文件是否存在。
 static std::uint64_t fileSizeOrMissing(const std::wstring& path, bool& exists) {
     WIN32_FILE_ATTRIBUTE_DATA data{};
     if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) {
@@ -139,6 +149,8 @@ static std::uint64_t fileSizeOrMissing(const std::wstring& path, bool& exists) {
     return size.QuadPart;
 }
 
+// Runs the child with NtWriteFile patched and verifies that payload bytes are swallowed.
+// 在修补 NtWriteFile 后运行子进程，并验证载荷字节被吞掉。
 int wmain() {
     wchar_t modulePath[MAX_PATH]{};
     GetModuleFileNameW(nullptr, modulePath, MAX_PATH);

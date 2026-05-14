@@ -1,6 +1,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+// Writes a payload file so the parent can demonstrate patching NtWriteFile.
+// 写入载荷文件，以便父进程演示修补 NtWriteFile 的效果。
 int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
         return 2;

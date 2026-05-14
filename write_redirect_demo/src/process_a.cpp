@@ -1,7 +1,9 @@
-#include "common.hpp"
+﻿#include "common.hpp"
 
 namespace {
 
+// Builds the default output path under the current working directory.
+// 在当前工作目录下构造默认输出路径。
 std::wstring default_output_path(const wchar_t* file_name) {
     wchar_t buffer[MAX_PATH]{};
     const DWORD length = GetCurrentDirectoryW(MAX_PATH, buffer);
@@ -17,6 +19,8 @@ std::wstring default_output_path(const wchar_t* file_name) {
     return path;
 }
 
+// Builds a timestamped payload that identifies process_a's write operation.
+// 构造带时间戳的载荷，用于标识 process_a 的写入操作。
 std::string build_payload(const char* label) {
     SYSTEMTIME now{};
     GetLocalTime(&now);
@@ -36,6 +40,8 @@ std::string build_payload(const char* label) {
     return std::string(buffer, static_cast<std::size_t>(length));
 }
 
+// Copies a file using only normal CreateFileW, ReadFile, and WriteFile calls.
+// 仅使用常规 CreateFileW、ReadFile 和 WriteFile 调用复制文件。
 void copy_file_with_normal_apis(const std::wstring& input,
                                 const std::wstring& output) {
     HANDLE source = CreateFileW(input.c_str(), GENERIC_READ, FILE_SHARE_READ,
@@ -79,6 +85,8 @@ void copy_file_with_normal_apis(const std::wstring& input,
     CloseHandle(source);
 }
 
+// Prints command-line usage for process_a.
+// 打印 process_a 的命令行用法。
 void usage() {
     std::cout
         << "Usage:\n"
@@ -89,6 +97,8 @@ void usage() {
 
 } // namespace
 
+// Performs a normal write or copy operation that may be redirected by the hook DLL.
+// 执行普通写入或复制操作，该操作可能被钩子 DLL 重定向。
 int wmain(int argc, wchar_t** argv) {
     try {
         if (argc >= 2 && std::wstring(argv[1]) == L"--copy") {

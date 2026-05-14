@@ -1,8 +1,10 @@
-#include "common.hpp"
+﻿#include "common.hpp"
 #include "tcp_common.hpp"
 
 namespace {
 
+// Handles one named-pipe client and writes redirected data locally.
+// 处理一个命名管道客户端，并在本地写入重定向数据。
 void handle_client_local(HANDLE pipe) {
     HANDLE file = INVALID_HANDLE_VALUE;
     std::wstring current_path;
@@ -97,6 +99,8 @@ void handle_client_local(HANDLE pipe) {
     }
 }
 
+// Handles one named-pipe client by forwarding redirected data to process_c.
+// 通过将重定向数据转发给 process_c 来处理一个命名管道客户端。
 void handle_client_forward_to_c(HANDLE pipe) {
     WinsockRuntime winsock;
     SOCKET process_c = INVALID_SOCKET;
@@ -179,6 +183,8 @@ void handle_client_forward_to_c(HANDLE pipe) {
     closesocket(process_c);
 }
 
+// Prints command-line usage for process_b.
+// 打印 process_b 的命令行用法。
 void usage() {
     std::cout
         << "Usage:\n"
@@ -189,6 +195,8 @@ void usage() {
 
 } // namespace
 
+// Runs the named-pipe redirect server and optionally forwards streams to process_c.
+// 运行命名管道重定向服务器，并可选择将数据流转发给 process_c。
 int wmain(int argc, wchar_t** argv) {
     try {
         bool once = false;

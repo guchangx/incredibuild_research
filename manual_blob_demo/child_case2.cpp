@@ -3,6 +3,8 @@
 
 #include <cstdio>
 
+// Copies bytes from the input file to the output file using normal Win32 file APIs.
+// 使用常规 Win32 文件 API 将输入文件中的字节复制到输出文件。
 int wmain(int argc, wchar_t** argv) {
     if (argc < 3) {
         return 2;
